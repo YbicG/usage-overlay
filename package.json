@@ -1,7 +1,7 @@
 {
   "name": "usage-overlay",
   "productName": "Usage Overlay",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Always-on-top overlay tracking usage and plan limits across Claude, Codex, Grok, Antigravity, OpenCode and more",
   "author": "Usage Overlay",
   "license": "UNLICENSED",
@@ -21,13 +21,33 @@
     "productName": "Usage Overlay",
     "copyright": "Usage Overlay",
     "asar": false,
-    "directories": { "output": "dist", "buildResources": "build" },
-    "files": ["main.js", "preload.js", "lib/**/*", "renderer/**/*", "build/icon.png", "package.json"],
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "lib/**/*",
+      "renderer/**/*",
+      "build/icon.png",
+      "package.json"
+    ],
     "win": {
       "icon": "build/icon.ico",
       "target": [
-        { "target": "nsis", "arch": ["x64"] },
-        { "target": "portable", "arch": ["x64"] }
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
       ]
     },
     "nsis": {
@@ -44,6 +64,8 @@
       "uninstallDisplayName": "Usage Overlay",
       "artifactName": "Usage-Overlay-Setup-${version}.${ext}"
     },
-    "portable": { "artifactName": "Usage-Overlay-Portable-${version}.${ext}" }
+    "portable": {
+      "artifactName": "Usage-Overlay-Portable-${version}.${ext}"
+    }
   }
 }
