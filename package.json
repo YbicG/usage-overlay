@@ -1,13 +1,49 @@
 {
   "name": "usage-overlay",
+  "productName": "Usage Overlay",
   "version": "1.0.0",
   "description": "Always-on-top overlay tracking usage and plan limits across Claude, Codex, Grok, Antigravity, OpenCode and more",
+  "author": "Usage Overlay",
+  "license": "UNLICENSED",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "selftest": "node lib/selftest.js"
+    "selftest": "node lib/selftest.js",
+    "icon": "node scripts/make-icon.js",
+    "dist": "node scripts/make-icon.js && electron-builder --win --x64"
   },
   "devDependencies": {
-    "electron": "44.4.5"
+    "electron": "44.4.5",
+    "electron-builder": "26.17.0"
+  },
+  "build": {
+    "appId": "com.usageoverlay.app",
+    "productName": "Usage Overlay",
+    "copyright": "Usage Overlay",
+    "asar": false,
+    "directories": { "output": "dist", "buildResources": "build" },
+    "files": ["main.js", "preload.js", "lib/**/*", "renderer/**/*", "build/icon.png", "package.json"],
+    "win": {
+      "icon": "build/icon.ico",
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Usage Overlay",
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false,
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "uninstallDisplayName": "Usage Overlay",
+      "artifactName": "Usage-Overlay-Setup-${version}.${ext}"
+    },
+    "portable": { "artifactName": "Usage-Overlay-Portable-${version}.${ext}" }
   }
 }
