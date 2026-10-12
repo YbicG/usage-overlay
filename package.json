@@ -4,7 +4,8 @@
   "description": "Always-on-top overlay tracking usage and plan limits across Claude, Codex, Grok, Antigravity, OpenCode and more",
   "main": "main.js",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "selftest": "node lib/selftest.js"
   },
   "devDependencies": {
     "electron": "44.4.5"
