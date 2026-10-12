@@ -1,0 +1,12 @@
+{
+  "name": "usage-overlay",
+  "version": "1.0.0",
+  "description": "Always-on-top overlay tracking usage and plan limits across Claude, Codex, Grok, Antigravity, OpenCode and more",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "44.4.5"
+  }
+}
