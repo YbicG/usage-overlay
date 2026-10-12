@@ -206,3 +206,8 @@ input:focus { outline: none; border-color: var(--fg2); }
 .pn { max-width: 190px; }
 .pp { max-width: 110px; }
 .tbl td:first-child { max-width: 170px; overflow: hidden; text-overflow: ellipsis; }
+
+/* manual refresh in progress */
+@keyframes spin { to { transform: rotate(360deg); } }
+.ib.spin { color: var(--fg); }
+.ib.spin svg { animation: spin 0.9s linear infinite; }

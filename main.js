@@ -140,6 +140,12 @@ function update(patch, { geometry = false, workerSync = false } = {}) {
   pushState();
 }
 
+/** Re-read every log and re-check every live plan limit right now. */
+function manualRefresh() {
+  if (worker) worker.postMessage({ type: 'refresh', force: true });
+  if (win && !win.isDestroyed()) win.webContents.send('refreshing');
+}
+
 function toggleVisible() {
   if (!win) return;
   if (win.isVisible()) win.hide(); else { win.showInactive(); applyOnTop(); }
@@ -166,7 +172,7 @@ function refreshTray() {
     { label: 'Size', submenu: [0.8, 0.9, 1, 1.15, 1.3].map(v => ({ label: Math.round(v * 100) + '%', type: 'radio', checked: Math.abs(settings.scale - v) < 0.02, click: () => update({ scale: v }) })) },
     { label: 'Start with Windows', type: 'checkbox', checked: app.getLoginItemSettings(loginArgs()).openAtLogin, click: m => update({ startWithWindows: m.checked }) },
     { type: 'separator' },
-    { label: 'Refresh now', click: () => worker && worker.postMessage({ type: 'refresh' }) },
+    { label: 'Refresh now', accelerator: 'Ctrl+Alt+R', click: manualRefresh },
     { label: 'Open data folder', click: () => shell.openPath(INGEST_DIR) },
     { label: 'Quit', click: () => app.quit() },
   ]));
@@ -242,6 +248,18 @@ async function debugShots() {
   win.show();
   update({ mode: 'full' });
   await snap('full'); await xss('full');
+  // manual refresh: click, confirm the spinner, then wait for it to finish (live polls re-run)
+  const t0 = Date.now();
+  await js("document.querySelector('[data-act=refresh]').click()");
+  await new Promise(r => setTimeout(r, 300));
+  await js("'refresh[start]: spinning=' + !!document.querySelector('.ib.spin')");
+  await snap('refreshing');
+  for (let i = 0; i < 60; i++) {
+    const spinning = await win.webContents.executeJavaScript("!!document.querySelector('.ib.spin')");
+    if (!spinning) break;
+    await new Promise(r => setTimeout(r, 500));
+  }
+  await js("'refresh[done after " + "' + (Date.now() - " + t0 + ") + 'ms]: header=' + document.querySelector('.hdr .sub').textContent");
   js("document.querySelector('[data-t=heat]').click()"); await new Promise(r => setTimeout(r, 400)); js("document.getElementById('scr').scrollTop=99999"); await snap('full-heat');
   js("document.querySelector('[data-t=mix]').click()"); await new Promise(r => setTimeout(r, 400)); js("document.getElementById('scr').scrollTop=99999"); await snap('full-mix');
   js("document.getElementById('bSet').click()"); await snap('settings');
@@ -257,7 +275,7 @@ ipcMain.on('update', (e, patch) => {
   update(patch, { workerSync: wk });
 });
 ipcMain.on('hide', () => win && win.hide());
-ipcMain.on('refresh', () => worker && worker.postMessage({ type: 'refresh' }));
+ipcMain.on('refresh', manualRefresh);
 ipcMain.on('cycle-mode', cycleMode);
 ipcMain.on('open-data', () => shell.openPath(INGEST_DIR));
 ipcMain.on('copy', (e, t) => clipboard.writeText(String(t)));
@@ -285,6 +303,7 @@ else {
     reg('Control+Alt+U', toggleVisible);
     reg('Control+Alt+L', () => update({ clickThrough: !settings.clickThrough }));
     reg('Control+Alt+M', cycleMode);
+    reg('Control+Alt+R', manualRefresh);
     reg('Control+Alt+Up', () => setOpacity(settings.opacity + 0.05));
     reg('Control+Alt+Down', () => setOpacity(settings.opacity - 0.05));
     reg('Control+Alt+=', () => update({ scale: Math.min(1.6, +(settings.scale + 0.05).toFixed(2)) }));

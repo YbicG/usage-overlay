@@ -66,6 +66,7 @@ const ICON = {
   gear: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>',
   layout: '<svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" rx="1"/><path d="M4 10h16"/></svg>',
   hide: '<svg viewBox="0 0 24 24"><path d="M6 12h12"/></svg>',
+  refresh: '<svg viewBox="0 0 24 24"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.5 4.5v4.5H15"/></svg>',
   back: '<svg viewBox="0 0 24 24"><path d="M14 6l-6 6 6 6"/></svg>',
 };
 
@@ -227,14 +228,18 @@ function tabHTML(snap, set) {
 
 /* ---------- chrome ---------- */
 function headerHTML(set, snap, opts = {}) {
-  const upd = snap ? new Date(snap.now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+  const upd = !snap ? '' : S.doneAt && Date.now() - S.doneAt < 4000 ? 'updated just now' : new Date(snap.now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   return `<div class="hdr"><span class="title">${opts.title || 'Usage'}</span>${opts.title ? '' : `<span class="sub n">${upd}</span>`}${set.clickThrough ? '<span class="lockflag" data-tip="Mouse passes through. Ctrl+Alt+L to unlock">locked</span>' : ''}<span class="spacer"></span>
     <div class="btns">
+      ${opts.title ? '' : refreshBtn()}
       ${opts.title ? '' : `<button class="ib" id="bMetric" data-tip="Sort and show by ${set.metric === 'cost' ? 'tokens' : 'cost'}"><span class="txt">${set.metric === 'cost' ? '$' : 'tok'}</span></button>`}
       <button class="ib" id="bMode" data-tip="Layout: ${set.mode} (Ctrl+Alt+M)">${ICON.layout}</button>
       <button class="ib ${S.settingsOpen ? 'on' : ''}" id="bSet" data-tip="${S.settingsOpen ? 'Back' : 'Settings'}">${S.settingsOpen ? ICON.back : ICON.gear}</button>
       <button class="ib" id="bHide" data-tip="Hide (Ctrl+Alt+U)">${ICON.hide}</button>
     </div></div>`;
+}
+function refreshBtn() {
+  return `<button class="ib ${S.refreshing ? 'spin' : ''}" data-act="refresh" data-tip="${S.refreshing ? 'Refreshing logs and live limits…' : 'Refresh now (Ctrl+Alt+R)'}">${ICON.refresh}</button>`;
 }
 function periodBar(snap, set) {
   const T = snap.totals[set.period];
@@ -245,7 +250,7 @@ function footerHTML(snap) {
   const errs = Object.keys(snap.errors || {});
   return `<div class="ftr"><span class="n">${snap.eventCount.toLocaleString()} events</span>
     ${errs.length ? `<span class="err" data-tip="${esc(Object.entries(snap.errors).map(([k, v]) => k + ': ' + v).join('\n'))}">${errs.length} source${errs.length > 1 ? 's' : ''} failing</span>` : ''}
-    <button id="bRefresh">Refresh</button></div>`;
+    <button data-act="refresh">${S.refreshing ? 'Refreshing…' : 'Refresh'}</button></div>`;
 }
 
 /* ---------- settings ---------- */
@@ -309,7 +314,7 @@ function render() {
       const g = p.gauges.slice().sort((a, b) => b.pct - a.pct)[0], used = g.pct;
       return `<span class="seg ${used >= 90 ? 'crit' : used >= 70 ? 'warn' : ''}" data-tip="${esc(p.name)}: tightest is ${esc((g.group ? g.group + ' ' : '') + g.label)}, ${Math.round(100 - used)}% left${g.resetsAt ? ', resets in ' + fmtIn(g.resetsAt) : ''}">${SHORT[p.id] || esc(p.name.slice(0, 2).toUpperCase())} <b class="n">${Math.round(100 - used)}</b></span>`;
     }).join('');
-    $root.innerHTML = `<div class="pill"><span class="tot n" data-tip="${PERIOD_NAME[set.period]}">${fmtM(T, m)}</span>${segs}<span class="spacer"></span><button class="ib" id="bMode" data-tip="Layout (Ctrl+Alt+M)">${ICON.layout}</button></div>`;
+    $root.innerHTML = `<div class="pill"><span class="tot n" data-tip="${PERIOD_NAME[set.period]}">${fmtM(T, m)}</span>${segs}<span class="spacer"></span>${refreshBtn()}<button class="ib" id="bMode" data-tip="Layout (Ctrl+Alt+M)">${ICON.layout}</button></div>`;
   } else if (S.settingsOpen) {
     $root.innerHTML = `${headerHTML(set, snap, { title: 'Settings' })}<div class="scroll">${settingsHTML(set, snap)}</div>`;
   } else if (set.mode === 'compact') {
@@ -336,7 +341,7 @@ function bind() {
   on('bMetric', () => overlay.update({ metric: S.settings.metric === 'cost' ? 'tokens' : 'cost' }));
   on('bMode', () => overlay.cycleMode());
   on('bHide', () => overlay.hide());
-  on('bRefresh', () => overlay.refresh());
+  document.querySelectorAll('[data-act=refresh]').forEach(el => el.onclick = startRefresh);
   on('bSet', () => {
     S.settingsOpen = !S.settingsOpen; S.jump = true;
     if (S.settingsOpen && S.settings.mode !== 'full') { S.returnMode = S.settings.mode; overlay.update({ mode: 'full' }); }
@@ -392,9 +397,30 @@ document.addEventListener('mouseover', e => { const t = e.target.closest && e.ta
 document.addEventListener('mousemove', e => { const t = e.target.closest && e.target.closest('[data-tip]'); if (!$tip.hidden && t) showTip(e, tipHTML(t.dataset.tip)); });
 document.addEventListener('mouseleave', hideTip);
 
+/* ---------- manual refresh ---------- */
+// Spins until a snapshot arrives with every live limit poll finished (or 30 s pass), then shows "updated just now".
+function startRefresh() {
+  if (!S.refreshing) overlay.refresh();
+  markRefreshing();
+}
+function markRefreshing() {
+  S.refreshing = Date.now();
+  clearTimeout(S.refreshTimer);
+  S.refreshTimer = setTimeout(() => finishRefresh(), 30000);
+  render();
+}
+function finishRefresh() {
+  if (!S.refreshing) return;
+  S.refreshing = 0; S.doneAt = Date.now();
+  clearTimeout(S.refreshTimer);
+  setTimeout(() => { if (!S.settingsOpen) render(); }, 4100);   // drop the "just now" label
+}
+
 /* ---------- wiring ---------- */
+overlay.on('refreshing', markRefreshing);    // started from the tray or Ctrl+Alt+R
 overlay.on('snapshot', snap => {
   S.snap = snap;
+  if (S.refreshing && !snap.liveBusy && Date.now() - S.refreshing > 600) finishRefresh();
   if (S.settingsOpen && document.activeElement && document.activeElement.tagName === 'INPUT') return;   // don't steal focus while typing
   render();
 });
